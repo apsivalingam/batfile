@@ -1,0 +1,71 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: === CONFIGURATION ===
+set "source=C:\Test\source"
+set "destination2=C:\Test\destination2"
+set "destination1=C:\Test\destination1"
+set "tempFile=%~dp0copied_files_temp.txt"
+
+:: === GET DATETIME IN YYYY-MM-DD_HH-MM FORMAT ===
+for /f %%a in ('wmic os get LocalDateTime ^| find "."') do set datetime=%%a
+set "YYYY=!datetime:~0,4!"
+set "MM=!datetime:~4,2!"
+set "DD=!datetime:~6,2!"
+set "HH=!datetime:~8,2!"
+set "MN=!datetime:~10,2!"
+set "SS=!datetime:~12,2!"
+
+set "timestamp=!YYYY!-!MM!-!DD!_!HH!-!MN!-!SS!"
+set "logFile=%~dp0copy_move_log_!timestamp!.txt"
+set "datedFolder=%destination1%\!YYYY!-!MM!-!DD!"
+
+:: === Create dated folder if not exists ===
+if not exist "!datedFolder!" (
+    mkdir "!datedFolder!"
+    echo [!timestamp!] Created folder: !datedFolder! >> "!logFile!"
+) else (
+    echo [!timestamp!] Folder already exists: !datedFolder! >> "!logFile!"
+)
+
+:: === Clean temp file if any ===
+if exist "!tempFile!" del /f /q "!tempFile!"
+
+:: === Step 1: Copy all files from source to destination2 ===
+echo [!timestamp!] Starting copy from source to destination2... >> "!logFile!"
+for %%F in ("%source%\*.*") do (
+    if exist "%%~F" (
+        copy /Y "%%~F" "%destination2%\" >nul
+        if !errorlevel! equ 0 (
+            echo %%~nxF >> "!tempFile!"
+            echo [!timestamp!] Copied: %%~nxF to destination2 >> "!logFile!"
+        ) else (
+            echo [!timestamp!] Failed to copy: %%~nxF >> "!logFile!"
+        )
+    )
+)
+
+:: === Step 2: Move only copied files from source to datedFolder ===
+echo [!timestamp!] Starting move of copied files to dated folder... >> "!logFile!"
+if exist "!tempFile!" (
+    for /f "usebackq delims=" %%F in ("!tempFile!") do (
+        if exist "%source%\%%F" (
+            move /Y "%source%\%%F" "!datedFolder!\" >nul
+            if !errorlevel! equ 0 (
+                echo [!timestamp!] Moved: %%F to !datedFolder! >> "!logFile!"
+            ) else (
+                echo [!timestamp!] Failed to move: %%F >> "!logFile!"
+            )
+        ) else (
+            echo [!timestamp!] File no longer exists in source: %%F >> "!logFile!"
+        )
+    )
+) else (
+    echo [!timestamp!] No files were copied. Nothing to move. >> "!logFile!"
+)
+
+:: === Cleanup temp file ===
+if exist "!tempFile!" del /f /q "!tempFile!"
+
+echo [!timestamp!] Operation completed. >> "!logFile!"
+endlocal
